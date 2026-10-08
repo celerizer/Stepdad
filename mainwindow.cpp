@@ -6,10 +6,13 @@ extern "C"
   #include "libh8300h/frontend.h"
 }
 
-#include <QtGamepad/QGamepad>
 #include <QTimer>
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+#include <QtGamepad/QGamepad>
+
 static QGamepad gamepad;
+#endif
 
 static h8_bool reached = FALSE;
 
@@ -19,8 +22,12 @@ static h8_bool reached = FALSE;
 #include <QTextStream>
 #include <QToolBar>
 #include <QLayout>
-#include <QAudioDeviceInfo>
 #include <QAudioFormat>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QMediaDevices>
+#else
+#include <QAudioDeviceInfo>
+#endif
 #include <QKeyEvent>
 
 using namespace Qt;
@@ -31,9 +38,15 @@ void MainWindow::onFrame(void)
   char output_buf[1024];
   int i;
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
   h8_bool button = gamepad.buttonA() || m_KeyDown;
   h8_bool left = gamepad.buttonLeft() || m_KeyLeft;
   h8_bool right = gamepad.buttonRight() || m_KeyRight;
+#else
+  h8_bool button = m_KeyDown;
+  h8_bool left = m_KeyLeft;
+  h8_bool right = m_KeyRight;
+#endif
   bool step = stepPulseActive(m_Clock.nsecsElapsed());
   h8_word_t analog;
 
@@ -215,6 +228,11 @@ void MainWindow::setupAudio(void)
   QAudioFormat format;
   format.setSampleRate(H8_BUZZER_DEFAULT_RATE);
   format.setChannelCount(1);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+  format.setSampleFormat(QAudioFormat::Int16);
+
+  QAudioDevice info = QMediaDevices::defaultAudioOutput();
+#else
   format.setSampleSize(16);
   format.setCodec("audio/pcm");
   format.setSampleType(QAudioFormat::SignedInt);
@@ -222,10 +240,15 @@ void MainWindow::setupAudio(void)
                       QAudioFormat::LittleEndian : QAudioFormat::BigEndian);
 
   QAudioDeviceInfo info = QAudioDeviceInfo::defaultOutputDevice();
+#endif
   if (!info.isFormatSupported(format))
   {
     // The buzzer can generate any rate, so only the rate may be negotiated
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    QAudioFormat nearest = info.preferredFormat();
+#else
     QAudioFormat nearest = info.nearestFormat(format);
+#endif
 
     format.setSampleRate(nearest.sampleRate());
     if (!info.isFormatSupported(format))
@@ -237,7 +260,7 @@ void MainWindow::setupAudio(void)
   }
   h8_buzzer_set_rate(m_Buzzer, format.sampleRate());
 
-  m_AudioOutput = new QAudioOutput(info, format, this);
+  m_AudioOutput = new AudioOutput(info, format, this);
 
   // About 100 ms of buffering covers timer jitter between frames
   m_AudioOutput->setBufferSize(format.bytesForDuration(100000));
@@ -273,7 +296,9 @@ MainWindow::MainWindow(QWidget *parent)
   setWindowIcon(QIcon("://assets/icon.png"));
   setWindowTitle("Stepdad");
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
   gamepad.setDeviceId(0);
+#endif
 
   m_ToolBar = addToolBar("Toolbar");
 
@@ -397,7 +422,7 @@ bool MainWindow::loadRom(const QString &romPath)
   memset(&m_System, 0, sizeof(m_System));
 
   h8_rtc_set_current(&m_System.vmem.parts.io1.rtc, 0);
-  memcpy(m_System.vmem.raw, romData.data(), std::min(romData.size(), (int)sizeof(m_System.vmem.raw)));
+  memcpy(m_System.vmem.raw, romData.data(), std::min<qint64>(romData.size(), sizeof(m_System.vmem.raw)));
 
   h8_init(&m_System);
   h8_system_init(&m_System, id);
@@ -407,7 +432,7 @@ bool MainWindow::loadRom(const QString &romPath)
     if (m_System.devices[i].type == H8_DEVICE_EEPROM_8K ||
         m_System.devices[i].type == H8_DEVICE_EEPROM_64K)
       memcpy(m_System.devices[i].data, eepData.data(),
-             std::min(eepData.size(), (int)m_System.devices[i].size));
+             std::min<qint64>(eepData.size(), m_System.devices[i].size));
     else if (m_System.devices[i].type == H8_DEVICE_LCD)
       frameBufferWidget->setLcd((h8_lcd_t*)m_System.devices[i].device, 96, 64);
     else if (m_System.devices[i].type == H8_DEVICE_LED)

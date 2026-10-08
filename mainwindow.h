@@ -1,7 +1,14 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include <QtGlobal>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QAudioSink>
+typedef QAudioSink AudioOutput;
+#else
 #include <QAudioOutput>
+typedef QAudioOutput AudioOutput;
+#endif
 #include <QElapsedTimer>
 #include <QLabel>
 #include <QMainWindow>
@@ -62,7 +69,7 @@ private:
   /** The system's buzzer device, if it has one */
   h8_device_t *m_Buzzer = nullptr;
   QLabel *m_StepsLabel = nullptr;
-  QAudioOutput *m_AudioOutput = nullptr;
+  AudioOutput *m_AudioOutput = nullptr;
   QIODevice *m_AudioDevice = nullptr;
 
   /** Paces emulation to real time, so audio is produced as fast as it plays */

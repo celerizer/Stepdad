@@ -1,6 +1,7 @@
-QT       += core gui gamepad multimedia
+QT       += core gui multimedia
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+lessThan(QT_MAJOR_VERSION, 6): QT += gamepad
 
 CONFIG += c++11 static
 
